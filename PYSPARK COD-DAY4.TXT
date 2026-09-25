@@ -1,0 +1,92 @@
+# Pyspark-Cod-Day4
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import *
+
+
+def load_feedback_data(spark: SparkSession, path: str) -> DataFrame:
+
+    df = spark.read \
+        .option("header", True) \
+        .option("inferSchema", True) \
+        .csv(path)
+
+    return df
+
+
+def clean_missing_and_invalid_emails(df: DataFrame) -> DataFrame:
+
+    df = df.filter(
+        col("email").isNotNull()
+        &
+        (trim(col("email")) != "")
+        &
+        trim(col("email")).rlike(
+            r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
+        )
+    )
+
+    return df
+
+
+def compute_rating_stats(df: DataFrame) -> dict:
+
+    df = df.withColumn(
+        "rating",
+        col("rating").cast("int")
+    )
+
+    df = df.filter(
+        col("rating").isNotNull()
+    )
+
+    result = df.agg(
+        min("rating").alias("min"),
+        max("rating").alias("max"),
+        avg("rating").alias("avg")
+    ).collect()[0]
+
+    output = {
+        "min": result["min"],
+        "max": result["max"],
+        "avg": result["avg"]
+    }
+
+    return output
+
+
+def count_ratings(df: DataFrame) -> int:
+
+    df = df.filter(
+        col("rating").isNotNull()
+    )
+
+    count = df.count()
+
+    return count
+
+
+def most_common_rating(df: DataFrame) -> int:
+
+    df = df.withColumn(
+        "rating",
+        col("rating").cast("int")
+    )
+
+    df = df.filter(
+        col("rating").between(1, 5)
+    )
+
+    result = df.groupBy("rating") \
+        .agg(count("*").alias("rating_count")) \
+        .orderBy(
+            col("rating_count").desc(),
+            col("rating").asc()
+        ) \
+        .first()
+
+    if result is None:
+        answer = 0
+    else:
+        answer = int(result["rating"])
+
+    return answer
